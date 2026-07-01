@@ -153,7 +153,7 @@ export default function DashboardPage({ profile }: DashboardPageProps) {
               <BookOpen className="w-6 h-6" />
             </div>
             <div>
-              <p className="font-bold text-lg">{greeting()}, Ustaz {profile?.nama_panggilan || profile?.nama_lengkap?.split(' ')[0] || ''}</p>
+              <p className="font-bold text-lg">{greeting()}, Ustaz {profile?.nama?.split(' ')[0] || ''}</p>
               <p className="text-emerald-100 text-sm">
                 {now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </p>

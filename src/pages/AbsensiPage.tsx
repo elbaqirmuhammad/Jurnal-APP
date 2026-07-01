@@ -145,9 +145,9 @@ export default function AbsensiPage({ showToast }: { showToast: ShowToast }) {
       const d = rekapData[m.id] ?? { Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
       const total = d.Hadir + d.Izin + d.Sakit + d.Alpha;
       const pct = total > 0 ? ((d.Hadir / total) * 100).toFixed(1) : '0';
-      return [i + 1, m.nama, d.Hadir, d.Izin, d.Sakit, d.Alpha, `${pct}%`];
+      return [i + 1, m.nama || m.nama_murid || '-', d.Hadir, d.Izin, d.Sakit, d.Alpha, `${pct}%`];
     });
-    generatePDF(`Rekap Absensi ${selectedKelas}`, headers, body, [`Periode: ${periode}`, `Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`]);
+    generatePDF(`Rekap Absensi ${selectedKelas}`, headers, body as (string | number)[][], [`Periode: ${periode}`, `Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`]);
   };
 
   const shareRekapWA = () => {

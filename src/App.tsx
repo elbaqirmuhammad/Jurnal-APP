@@ -16,6 +16,7 @@ import SikapPage from './pages/SikapPage';
 import CatatanPage from './pages/CatatanPage';
 import SoalPage from './pages/SoalPage';
 import AgendaPage from './pages/AgendaPage';
+import RaporPage from './pages/RaporPage';
 import AdminPage from './pages/AdminPage';
 
 const SUPABASE_URL = 'https://intkcrhsinezswldmokr.supabase.co';
@@ -453,6 +454,7 @@ export default function App() {
       case 'catatan':   return <CatatanPage showToast={showToast} />;
       case 'soal':      return <SoalPage showToast={showToast} />;
       case 'agenda':    return <AgendaPage showToast={showToast} />;
+      case 'rapor':     return <RaporPage showToast={showToast} profile={profile} />;
       case 'admin':     return <AdminPage showToast={showToast} profile={profile} />;
       default:         return null;
     }

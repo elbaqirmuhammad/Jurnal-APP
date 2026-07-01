@@ -16,10 +16,12 @@ import {
   FileText,
   Shield,
   Download,
+  Award,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { ActiveTab, Profile } from '../types';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import RunningText from './RunningText';
 
 interface LayoutProps {
   activeTab: ActiveTab;
@@ -40,6 +42,7 @@ const navItems: { id: ActiveTab; icon: React.ElementType; label: string; adminOn
   { id: 'catatan', icon: BookOpen, label: 'Catatan' },
   { id: 'soal', icon: FileQuestion, label: 'Soal' },
   { id: 'agenda', icon: Bell, label: 'Agenda' },
+  { id: 'rapor', icon: Award, label: 'Rapor' },
   { id: 'admin', icon: Shield, label: 'Admin', adminOnly: true },
 ];
 
@@ -48,7 +51,7 @@ export default function Layout({ activeTab, setActiveTab, profile, onLogout, chi
   const [now, setNow] = useState(new Date());
   const { isInstallable, isInstalled, promptInstall } = usePWAInstall();
 
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'Admin';
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60000);
@@ -63,7 +66,7 @@ export default function Layout({ activeTab, setActiveTab, profile, onLogout, chi
   const filteredNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
   const activeLabel = navItems.find(n => n.id === activeTab)?.label ?? '';
 
-  const displayName = profile?.nama_panggilan || profile?.nama_lengkap?.split(' ')[0] || 'Ustaz';
+  const displayName = profile?.nama?.split(' ')[0] || 'Ustaz';
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 md:pb-0 md:pl-64">
@@ -106,7 +109,7 @@ export default function Layout({ activeTab, setActiveTab, profile, onLogout, chi
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-800 truncate">{displayName}</p>
-              <p className="text-[10px] text-slate-400">{profile?.role === 'admin' ? 'Administrator' : profile?.role === 'operator' ? 'Operator' : 'Ustaz'}</p>
+              <p className="text-[10px] text-slate-400">{profile?.role === 'Admin' ? 'Administrator' : 'Guru'}</p>
             </div>
           </div>
           {/* Install App Button */}
@@ -244,6 +247,9 @@ export default function Layout({ activeTab, setActiveTab, profile, onLogout, chi
           <span className="text-[9px] leading-none font-medium">Lainnya</span>
         </button>
       </nav>
+
+      {/* Running Text Ticker */}
+      <RunningText profileName={profile?.nama || ''} />
 
       {/* Main Content */}
       <main className="p-4 md:p-6">

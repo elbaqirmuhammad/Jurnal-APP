@@ -49,7 +49,7 @@ export function generatePDF(
 
 export function generateRaporPDF(
   murid: { nama: string; kelas: string; domisili?: string; alamat?: string },
-  absenData: { hadir: number; izin: number; sakit: number; alpha: number; total: number },
+  absenData: { hadir: number; izin: number; sakit: number; alfa: number; total: number },
   nilaiList: { pelajaran: string; jenis_ujian: string; skor: number }[],
   perilakuList: { catatan: string; jenis: string; created_at?: string }[],
   capaianList: { capaian: string; tanggal: string }[],
@@ -109,7 +109,7 @@ export function generateRaporPDF(
     ['Hadir', absenData.hadir.toString(), `${absenData.total > 0 ? ((absenData.hadir / absenData.total) * 100).toFixed(1) : 0}%`],
     ['Izin', absenData.izin.toString(), `${absenData.total > 0 ? ((absenData.izin / absenData.total) * 100).toFixed(1) : 0}%`],
     ['Sakit', absenData.sakit.toString(), `${absenData.total > 0 ? ((absenData.sakit / absenData.total) * 100).toFixed(1) : 0}%`],
-    ['Alpha', absenData.alpha.toString(), `${absenData.total > 0 ? ((absenData.alpha / absenData.total) * 100).toFixed(1) : 0}%`],
+    ['Alfa', absenData.alfa.toString(), `${absenData.total > 0 ? ((absenData.alfa / absenData.total) * 100).toFixed(1) : 0}%`],
     ['Total', absenData.total.toString(), '100%'],
   ];
 

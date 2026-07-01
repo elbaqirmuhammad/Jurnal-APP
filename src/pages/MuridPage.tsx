@@ -58,8 +58,9 @@ export default function MuridPage({ showToast }: { showToast: ShowToast }) {
   // Filter & Pencarian Data Murid
   const filteredMuridList = useMemo(() => {
     return muridList.filter(m => {
-      const matchesSearch = 
-        m.nama.toLowerCase().includes(search.toLowerCase()) ||
+      const nama = m.nama || m.nama_murid || '';
+      const matchesSearch =
+        nama.toLowerCase().includes(search.toLowerCase()) ||
         (m.domisili && m.domisili.toLowerCase().includes(search.toLowerCase()));
       const matchesKelas = filterKelas === 'all' || m.kelas === filterKelas;
       return matchesSearch && matchesKelas;

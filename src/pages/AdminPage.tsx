@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import {
-  User, Users, Shield, Plus, Trash2, Pencil, CheckCircle, XCircle,
-  BookOpen, Calendar
+  User, Users, Shield, Plus, Trash2, Pencil,
+  BookOpen, Calendar, Type, Save, Key, AlertCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import type { Profile, ShowToast, TahunAjaran, Semester, MataPelajaran, UserRole, KelompokMapel } from '../types';
 
-type AdminTab = 'users' | 'tahun' | 'semester' | 'kelas' | 'mapel' | 'murid';
+type AdminTab = 'users' | 'info' | 'tahun' | 'semester' | 'kelas' | 'mapel';
+
+const SUPABASE_URL = 'https://intkcrhsinezswldmokr.supabase.co';
 
 export default function AdminPage({
   showToast,
@@ -29,17 +31,24 @@ export default function AdminPage({
   const [semesterList, setSemesterList] = useState<Semester[]>([]);
   const [kelasList, setKelasList] = useState<any[]>([]);
   const [mapelList, setMapelList] = useState<MataPelajaran[]>([]);
+  const [runningText, setRunningText] = useState('');
 
   // Form states
-  const [userForm, setUserForm] = useState({ nama_lengkap: '', nama_panggilan: '', nomor_whatsapp: '', role: 'ustaz' as UserRole, is_active: true });
+  const [userForm, setUserForm] = useState({
+    nama_lengkap: '',
+    nama_panggilan: '',
+    nomor_whatsapp: '',
+    role: 'Guru' as UserRole,
+    is_active: true,
+    password: ''
+  });
   const [tahunForm, setTahunForm] = useState({ nama: '', aktif: false });
   const [semesterForm, setSemesterForm] = useState({ nama: '', aktif: false });
   const [kelasForm, setKelasForm] = useState({ nama_kelas: '', tingkat: '1', kode: '' });
-  const [mapelForm, setMapelForm] = useState({ nama_mapel: '', kelompok: 'Diniyah' as KelompokMapel, kode: '' });
+  const [mapelForm, setMapelForm] = useState({ nama_mapel: '', kelompok: 'A' as KelompokMapel, kode: '' });
   const [newUserId, setNewUserId] = useState('');
 
-  // Check if user is admin
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'Admin';
 
   useEffect(() => {
     if (isAdmin) fetchData();
@@ -48,12 +57,13 @@ export default function AdminPage({
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [usersRes, tahunRes, semesterRes, kelasRes, mapelRes] = await Promise.all([
+      const [usersRes, tahunRes, semesterRes, kelasRes, mapelRes, infoRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('tahun_ajaran').select('*').order('nama'),
-        supabase.from('semester').select('*').order('nama'),
-        supabase.from('kelas').select('*').eq('is_active', true).order('nama_kelas'),
-        supabase.from('mata_pelajaran').select('*').eq('is_active', true).order('nama_mapel'),
+        supabase.from('tahun_ajaran').select('*').order('tahun_ajaran'),
+        supabase.from('semester').select('*').order('nama_semester'),
+        supabase.from('kelas').select('*').order('nama_kelas'),
+        supabase.from('mata_pelajaran').select('*').order('nama_mapel'),
+        supabase.from('pengaturan').select('*').eq('kunci', 'running_text_global').maybeSingle(),
       ]);
 
       if (usersRes.data) setUsers(usersRes.data as Profile[]);
@@ -61,6 +71,7 @@ export default function AdminPage({
       if (semesterRes.data) setSemesterList(semesterRes.data as Semester[]);
       if (kelasRes.data) setKelasList(kelasRes.data);
       if (mapelRes.data) setMapelList(mapelRes.data as MataPelajaran[]);
+      if (infoRes.data?.nilai) setRunningText(infoRes.data.nilai);
     } catch (error: any) {
       showToast(error.message, 'error');
     }
@@ -71,18 +82,27 @@ export default function AdminPage({
   const openAddUser = () => {
     setEditingId(null);
     setNewUserId('');
-    setUserForm({ nama_lengkap: '', nama_panggilan: '', nomor_whatsapp: '', role: 'ustaz', is_active: true });
+    setUserForm({
+      nama_lengkap: '',
+      nama_panggilan: '',
+      nomor_whatsapp: '',
+      role: 'Guru',
+      is_active: true,
+      password: ''
+    });
     setShowModal(true);
   };
 
   const openEditUser = (u: Profile) => {
     setEditingId(u.id);
+    setNewUserId('');
     setUserForm({
-      nama_lengkap: u.nama_lengkap || '',
-      nama_panggilan: u.nama_panggilan || '',
-      nomor_whatsapp: u.nomor_whatsapp || '',
-      role: (u.role || 'ustaz') as 'admin' | 'operator' | 'ustaz',
-      is_active: u.is_active ?? true,
+      nama_lengkap: u.nama || '',
+      nama_panggilan: '',
+      nomor_whatsapp: '',
+      role: (u.role || 'Guru') as UserRole,
+      is_active: true,
+      password: ''
     });
     setShowModal(true);
   };
@@ -92,40 +112,110 @@ export default function AdminPage({
     setSaving(true);
     try {
       if (editingId) {
+        // Update existing user
         const { error } = await supabase.from('profiles').update({
-          nama_lengkap: userForm.nama_lengkap,
-          nama_panggilan: userForm.nama_panggilan,
-          nomor_whatsapp: userForm.nomor_whatsapp,
+          nama: userForm.nama_lengkap,
           role: userForm.role,
-          is_active: userForm.is_active,
         }).eq('id', editingId);
         if (error) throw error;
         showToast('User diperbarui!', 'success');
       } else {
-        // New user - create auth user then profile
+        // Create new user via edge function
         if (!newUserId) {
           showToast('Masukkan ID Login untuk user baru', 'error');
           setSaving(false);
           return;
         }
-        // Note: Actual auth user creation requires admin API (service role)
-        showToast('Untuk membuat user baru, gunakan Admin API dengan service_role_key', 'error');
-        setSaving(false);
-        return;
+        if (!userForm.password || userForm.password.length < 6) {
+          showToast('Password minimal 6 karakter', 'error');
+          setSaving(false);
+          return;
+        }
+
+        const email = `${newUserId.toLowerCase().replace(/[^a-z0-9]/g, '')}@madrasah.local`;
+
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/create-admin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            password: userForm.password,
+            nama_lengkap: userForm.nama_lengkap,
+            role: userForm.role.toLowerCase() === 'admin' ? 'admin' : 'Guru',
+            setup_key: 'simkbm-setup-2024',
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Gagal membuat user');
+        }
+
+        showToast('User berhasil dibuat!', 'success');
       }
       setShowModal(false);
       fetchData();
     } catch (error: any) {
-      showToast(error.message, 'error');
+      showToast(error.message || 'Terjadi kesalahan', 'error');
     }
     setSaving(false);
   };
 
-  const toggleUserActive = async (u: Profile) => {
-    const { error } = await supabase.from('profiles').update({ is_active: !u.is_active }).eq('id', u.id);
-    if (error) { showToast(error.message, 'error'); return; }
-    setUsers(prev => prev.map(item => item.id === u.id ? { ...item, is_active: !u.is_active } : item));
-    showToast(u.is_active ? 'User dinonaktifkan' : 'User diaktifkan', 'success');
+  const handleResetPassword = async (u: Profile) => {
+    // Use edge function to reset password
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: u.id,
+          new_password: '123456',
+          setup_key: 'simkbm-setup-2024',
+        }),
+      });
+
+      // If the edge function doesn't exist, show alternative method
+      if (!response.ok) {
+        showToast(`Reset password: Gunakan Admin API. Password default: 123456`, 'info');
+        return;
+      }
+
+      showToast('Password berhasil direset ke: 123456', 'success');
+    } catch (error: any) {
+      showToast(error.message, 'error');
+    }
+  };
+
+  // ========== RUNNING TEXT ==========
+  const handleSaveRunningText = async () => {
+    setSaving(true);
+    try {
+      // Check if running_text_global exists
+      const { data: existing } = await supabase
+        .from('pengaturan')
+        .select('id')
+        .eq('kunci', 'running_text_global')
+        .maybeSingle();
+
+      let error;
+      if (existing?.id) {
+        ({ error } = await supabase
+          .from('pengaturan')
+          .update({ nilai: runningText })
+          .eq('id', existing.id));
+      } else {
+        ({ error } = await supabase
+          .from('pengaturan')
+          .insert({ kunci: 'running_text_global', nilai: runningText }));
+      }
+
+      if (error) throw error;
+      showToast('Teks berjalan berhasil disimpan!', 'success');
+    } catch (error: any) {
+      showToast(error.message, 'error');
+    }
+    setSaving(false);
   };
 
   // ========== TAHUN AJARAN ==========
@@ -137,16 +227,17 @@ export default function AdminPage({
 
   const openEditTahun = (t: TahunAjaran) => {
     setEditingId(t.id);
-    setTahunForm({ nama: t.nama, aktif: t.aktif || false });
+    setTahunForm({ nama: t.tahun_ajaran, aktif: t.is_active || false });
     setShowModal(true);
   };
 
   const handleSaveTahun = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const payload = { tahun_ajaran: tahunForm.nama, is_active: tahunForm.aktif };
     const { error } = editingId
-      ? await supabase.from('tahun_ajaran').update(tahunForm).eq('id', editingId)
-      : await supabase.from('tahun_ajaran').insert(tahunForm);
+      ? await supabase.from('tahun_ajaran').update(payload).eq('id', editingId)
+      : await supabase.from('tahun_ajaran').insert(payload);
     setSaving(false);
     if (error) { showToast(error.message, 'error'); return; }
     showToast(editingId ? 'Diperbarui!' : 'Ditambahkan!', 'success');
@@ -163,16 +254,17 @@ export default function AdminPage({
 
   const openEditSemester = (s: Semester) => {
     setEditingId(s.id);
-    setSemesterForm({ nama: s.nama, aktif: s.aktif || false });
+    setSemesterForm({ nama: s.nama_semester, aktif: s.is_active || false });
     setShowModal(true);
   };
 
   const handleSaveSemester = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const payload = { nama_semester: semesterForm.nama, is_active: semesterForm.aktif };
     const { error } = editingId
-      ? await supabase.from('semester').update(semesterForm).eq('id', editingId)
-      : await supabase.from('semester').insert(semesterForm);
+      ? await supabase.from('semester').update(payload).eq('id', editingId)
+      : await supabase.from('semester').insert(payload);
     setSaving(false);
     if (error) { showToast(error.message, 'error'); return; }
     showToast(editingId ? 'Diperbarui!' : 'Ditambahkan!', 'success');
@@ -188,10 +280,10 @@ export default function AdminPage({
   };
 
   const openEditKelas = (k: any) => {
-    setEditingId(k.id?.toString() || null);
+    setEditingId(k.id);
     setKelasForm({
       nama_kelas: k.nama_kelas,
-      tingkat: k.tingkat?.toString() || '1',
+      tingkat: '1',
       kode: k.kode || '',
     });
     setShowModal(true);
@@ -200,12 +292,7 @@ export default function AdminPage({
   const handleSaveKelas = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const payload = {
-      nama_kelas: kelasForm.nama_kelas,
-      tingkat: kelasForm.tingkat,
-      kode: kelasForm.kode || null,
-      user_id: profile?.id,
-    };
+    const payload = { nama_kelas: kelasForm.nama_kelas };
     let error;
     if (editingId) {
       ({ error } = await supabase.from('kelas').update(payload).eq('id', editingId));
@@ -222,7 +309,7 @@ export default function AdminPage({
   // ========== MAPEL ==========
   const openAddMapel = () => {
     setEditingId(null);
-    setMapelForm({ nama_mapel: '', kelompok: 'Diniyah', kode: '' });
+    setMapelForm({ nama_mapel: '', kelompok: 'A', kode: '' });
     setShowModal(true);
   };
 
@@ -230,8 +317,8 @@ export default function AdminPage({
     setEditingId(m.id);
     setMapelForm({
       nama_mapel: m.nama_mapel,
-      kelompok: m.kelompok || 'Diniyah',
-      kode: m.kode || '',
+      kelompok: m.kelompok || 'A',
+      kode: '',
     });
     setShowModal(true);
   };
@@ -239,12 +326,7 @@ export default function AdminPage({
   const handleSaveMapel = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const payload = {
-      nama_mapel: mapelForm.nama_mapel,
-      kelompok: mapelForm.kelompok,
-      kode: mapelForm.kode || null,
-      user_id: profile?.id,
-    };
+    const payload = { nama_mapel: mapelForm.nama_mapel, kelompok: mapelForm.kelompok };
     const { error } = editingId
       ? await supabase.from('mata_pelajaran').update(payload).eq('id', editingId)
       : await supabase.from('mata_pelajaran').insert(payload);
@@ -276,6 +358,7 @@ export default function AdminPage({
 
   const tabs = [
     { id: 'users' as AdminTab, label: 'User', count: users.length, icon: Users },
+    { id: 'info' as AdminTab, label: 'Info', count: 0, icon: Type },
     { id: 'tahun' as AdminTab, label: 'Tahun Ajaran', count: tahunList.length, icon: Calendar },
     { id: 'semester' as AdminTab, label: 'Semester', count: semesterList.length, icon: BookOpen },
     { id: 'kelas' as AdminTab, label: 'Kelas', count: kelasList.length, icon: BookOpen },
@@ -288,15 +371,15 @@ export default function AdminPage({
         <form onSubmit={handleSaveUser} className="space-y-4">
           {!editingId && (
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">ID Login Baru</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">ID Login Baru *</label>
               <input
                 type="text"
                 value={newUserId}
                 onChange={e => setNewUserId(e.target.value)}
                 className="input-field text-sm"
                 placeholder="contoh: ustaz01"
+                required
               />
-              <p className="text-[10px] text-amber-600 mt-1">Gunakan Admin API untuk membuat user baru</p>
             </div>
           )}
           <div>
@@ -310,52 +393,30 @@ export default function AdminPage({
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {!editingId && (
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nama Panggilan</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Password Awal *</label>
               <input
-                type="text"
-                value={userForm.nama_panggilan}
-                onChange={e => setUserForm(p => ({ ...p, nama_panggilan: e.target.value }))}
+                type="password"
+                value={userForm.password}
+                onChange={e => setUserForm(p => ({ ...p, password: e.target.value }))}
                 className="input-field text-sm"
-                placeholder="Panggilan"
+                placeholder="Minimal 6 karakter"
+                required
+                minLength={6}
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">No. WA</label>
-              <input
-                type="text"
-                value={userForm.nomor_whatsapp}
-                onChange={e => setUserForm(p => ({ ...p, nomor_whatsapp: e.target.value }))}
-                className="input-field text-sm"
-                placeholder="08xxx"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Role</label>
-              <select
-                value={userForm.role}
-                onChange={e => setUserForm(p => ({ ...p, role: e.target.value as any }))}
-                className="input-field text-sm"
-              >
-                <option value="admin">Admin</option>
-                <option value="operator">Operator</option>
-                <option value="ustaz">Ustaz</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Status</label>
-              <select
-                value={userForm.is_active ? 'true' : 'false'}
-                onChange={e => setUserForm(p => ({ ...p, is_active: e.target.value === 'true' }))}
-                className="input-field text-sm"
-              >
-                <option value="true">Aktif</option>
-                <option value="false">Non-aktif</option>
-              </select>
-            </div>
+          )}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Role</label>
+            <select
+              value={userForm.role}
+              onChange={e => setUserForm(p => ({ ...p, role: e.target.value as UserRole }))}
+              className="input-field text-sm"
+            >
+              <option value="Guru">Guru / Ustaz</option>
+              <option value="Admin">Admin</option>
+            </select>
           </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1 text-sm">Batal</button>
@@ -406,21 +467,9 @@ export default function AdminPage({
     if (tab === 'kelas') {
       return (
         <form onSubmit={handleSaveKelas} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nama Kelas *</label>
-              <input type="text" value={kelasForm.nama_kelas} onChange={e => setKelasForm(p => ({ ...p, nama_kelas: e.target.value }))} className="input-field text-sm" placeholder="1A" required />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tingkat</label>
-              <select value={kelasForm.tingkat} onChange={e => setKelasForm(p => ({ ...p, tingkat: e.target.value }))} className="input-field text-sm">
-                {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-          </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kode</label>
-            <input type="text" value={kelasForm.kode} onChange={e => setKelasForm(p => ({ ...p, kode: e.target.value }))} className="input-field text-sm" placeholder="Opsional" />
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nama Kelas *</label>
+            <input type="text" value={kelasForm.nama_kelas} onChange={e => setKelasForm(p => ({ ...p, nama_kelas: e.target.value }))} className="input-field text-sm" placeholder="1A" required />
           </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1 text-sm">Batal</button>
@@ -433,25 +482,19 @@ export default function AdminPage({
     if (tab === 'mapel') {
       return (
         <form onSubmit={handleSaveMapel} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nama Mapel *</label>
-              <input type="text" value={mapelForm.nama_mapel} onChange={e => setMapelForm(p => ({ ...p, nama_mapel: e.target.value }))} className="input-field text-sm" placeholder="Fiqih" required />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kelompok</label>
-              <select value={mapelForm.kelompok} onChange={e => setMapelForm(p => ({ ...p, kelompok: e.target.value as any }))} className="input-field text-sm">
-                <option value="Diniyah">Diniyah</option>
-                <option value="Umum">Umum</option>
-                <option value="Bahasa">Bahasa</option>
-                <option value="Tahfidz">Tahfidz</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nama Mapel *</label>
+            <input type="text" value={mapelForm.nama_mapel} onChange={e => setMapelForm(p => ({ ...p, nama_mapel: e.target.value }))} className="input-field text-sm" placeholder="Fiqih" required />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kode</label>
-            <input type="text" value={mapelForm.kode} onChange={e => setMapelForm(p => ({ ...p, kode: e.target.value }))} className="input-field text-sm" placeholder="Opsional" />
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kelompok</label>
+            <select value={mapelForm.kelompok} onChange={e => setMapelForm(p => ({ ...p, kelompok: e.target.value as KelompokMapel }))} className="input-field text-sm">
+              <option value="A">Kelompok A (Wajib)</option>
+              <option value="B">Kelompok B</option>
+              <option value="C">Kelompok C</option>
+              <option value="Wajib">Wajib</option>
+              <option value="Pilihan">Pilihan</option>
+            </select>
           </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1 text-sm">Batal</button>
@@ -482,10 +525,12 @@ export default function AdminPage({
           <h2 className="section-title">Admin Panel</h2>
           <p className="section-subtitle">Kelola data master sistem</p>
         </div>
-        <button onClick={getOpenAdd()} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          <span>Tambah</span>
-        </button>
+        {tab !== 'info' && (
+          <button onClick={getOpenAdd()} className="btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            <span>Tambah</span>
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -500,7 +545,9 @@ export default function AdminPage({
             >
               <Icon className="w-3.5 h-3.5" />
               {t.label}
-              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] ${tab === t.id ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>{t.count}</span>
+              {t.count > 0 && (
+                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] ${tab === t.id ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>{t.count}</span>
+              )}
             </button>
           );
         })}
@@ -520,22 +567,70 @@ export default function AdminPage({
                     <User className="w-5 h-5 text-slate-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-slate-800 text-sm truncate">{u.nama_lengkap || 'User'}</p>
-                    <div className="flex items-center gap-2">
-                      <span className={`badge text-[10px] ${u.role === 'admin' ? 'badge-danger' : u.role === 'operator' ? 'badge-warning' : 'badge-success'}`}>{u.role}</span>
-                      {u.nomor_whatsapp && <span className="text-xs text-slate-400">{u.nomor_whatsapp}</span>}
+                    <p className="font-semibold text-slate-800 text-sm truncate">{u.nama || 'User'}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`badge text-[10px] ${u.role === 'Admin' ? 'badge-danger' : 'badge-success'}`}>{u.role}</span>
+                      {u.email && <span className="text-xs text-slate-400 truncate">{u.email}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => toggleUserActive(u)} className={`p-1.5 rounded-lg ${u.is_active ? 'text-emerald-500 hover:bg-emerald-50' : 'text-slate-300 hover:bg-slate-50'}`}>
-                      {u.is_active ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                    <button
+                      onClick={() => handleResetPassword(u)}
+                      className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Reset password ke 123456"
+                    >
+                      <Key className="w-4 h-4" />
                     </button>
-                    <button onClick={() => openEditUser(u)} className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => openEditUser(u)} className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-colors">
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* RUNNING TEXT / INFO */}
+          {tab === 'info' && (
+            <div className="space-y-4">
+              <div className="card p-5">
+                <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2 text-sm">
+                  <Type className="w-4 h-4 text-emerald-500" />
+                  Teks Berjalan Global
+                </h3>
+                <p className="text-xs text-slate-500 mb-3">
+                  Teks ini akan ditampilkan sebagai running text di bagian atas aplikasi.
+                </p>
+                <textarea
+                  value={runningText}
+                  onChange={e => setRunningText(e.target.value)}
+                  className="input-field text-sm resize-none"
+                  rows={4}
+                  placeholder="Contoh: Selamat datang di SIM KBM Ustaz. Jangan lupa sholat berjamaah..."
+                />
+                <div className="flex justify-end mt-3">
+                  <button
+                    onClick={handleSaveRunningText}
+                    disabled={saving}
+                    className="btn-primary flex items-center gap-2 text-sm"
+                  >
+                    <Save className="w-4 h-4" />
+                    {saving ? 'Menyimpan...' : 'Simpan Teks'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="card p-5 bg-amber-50 border-amber-200">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-amber-800 text-sm mb-1">Informasi Reset Password</h4>
+                    <p className="text-xs text-amber-700">
+                      Untuk reset password user, klik tombol kunci pada daftar user. Password akan direset menjadi "123456".
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -545,9 +640,9 @@ export default function AdminPage({
             <div className="space-y-2">
               {tahunList.map(t => (
                 <div key={t.id} className="card p-3.5 flex items-center gap-3 group">
-                  <div className={`w-3 h-3 rounded-full ${t.aktif ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                  <span className="font-semibold text-slate-800 text-sm flex-1">{t.nama}</span>
-                  {t.aktif && <span className="badge badge-success text-[10px]">Aktif</span>}
+                  <div className={`w-3 h-3 rounded-full ${t.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  <span className="font-semibold text-slate-800 text-sm flex-1">{t.tahun_ajaran}</span>
+                  {t.is_active && <span className="badge badge-success text-[10px]">Aktif</span>}
                   <button onClick={() => openEditTahun(t)} className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100">
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -562,9 +657,9 @@ export default function AdminPage({
             <div className="space-y-2">
               {semesterList.map(s => (
                 <div key={s.id} className="card p-3.5 flex items-center gap-3 group">
-                  <div className={`w-3 h-3 rounded-full ${s.aktif ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                  <span className="font-semibold text-slate-800 text-sm flex-1">{s.nama}</span>
-                  {s.aktif && <span className="badge badge-success text-[10px]">Aktif</span>}
+                  <div className={`w-3 h-3 rounded-full ${s.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  <span className="font-semibold text-slate-800 text-sm flex-1">{s.nama_semester}</span>
+                  {s.is_active && <span className="badge badge-success text-[10px]">Aktif</span>}
                   <button onClick={() => openEditSemester(s)} className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100">
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -584,7 +679,6 @@ export default function AdminPage({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800 text-sm">{k.nama_kelas}</p>
-                    <span className="text-xs text-slate-400">Tingkat {k.tingkat}</span>
                   </div>
                   <button onClick={() => openEditKelas(k)} className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100">
                     <Pencil className="w-3.5 h-3.5" />
@@ -602,7 +696,7 @@ export default function AdminPage({
                 <div key={m.id} className="card p-3.5 flex items-center gap-3 group">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800 text-sm">{m.nama_mapel}</p>
-                    <span className={`badge text-[10px] ${m.kelompok === 'Diniyah' ? 'badge-success' : m.kelompok === 'Umum' ? 'badge-info' : 'badge-warning'}`}>{m.kelompok}</span>
+                    <span className={`badge text-[10px] ${m.kelompok === 'A' || m.kelompok === 'Wajib' ? 'badge-success' : 'badge-info'}`}>{m.kelompok}</span>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                     <button onClick={() => openEditMapel(m)} className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">

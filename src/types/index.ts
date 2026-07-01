@@ -2,9 +2,9 @@
 // All tables use UUID id, have proper FK relationships
 
 // ============ ENUMS ============
-export type UserRole = 'admin' | 'operator' | 'ustaz';
-export type MuridStatus = 'Aktif' | 'Lulus' | 'Pindah' | 'Keluar' | 'Cuti';
-export type KelompokMapel = 'Diniyah' | 'Umum' | 'Bahasa' | 'Tahfidz' | 'Lainnya';
+export type UserRole = 'Admin' | 'Guru' | 'Murid';
+export type MuridStatus = 'Aktif' | 'Lulus' | 'Pindah' | 'Keluar';
+export type KelompokMapel = 'A' | 'B' | 'C' | 'Wajib' | 'Pilihan';
 export type Hari = 'Senin' | 'Selasa' | 'Rabu' | 'Kamis' | 'Jumat' | 'Sabtu' | 'Ahad';
 export type StatusAbsensi = 'Hadir' | 'Izin' | 'Sakit' | 'Alfa';
 export type JenisPenilaian = 'Ulangan' | 'Ujian Tulis' | 'Ujian Lisan' | 'Tugas' | 'Hafalan' | 'Praktik' | 'Lainnya';
@@ -17,32 +17,28 @@ export type StatusWA = 'pending' | 'sent' | 'failed';
 
 export interface TahunAjaran {
   id: string;
-  nama: string;
-  aktif: boolean;
+  tahun_ajaran: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export interface Semester {
   id: string;
-  nama: string;
-  aktif: boolean;
+  nama_semester: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export interface Profile {
   id: string;
-  nama_lengkap?: string;
-  nama_panggilan?: string;
+  id_login?: string;
+  nama?: string;
   email?: string;
-  nomor_whatsapp?: string;
-  foto?: string;
   role: UserRole;
   created_at: string;
   updated_at: string;
-  deleted_at?: string;
-  is_active: boolean;
 }
 
 export interface Pengaturan {
@@ -97,7 +93,8 @@ export interface Murid {
   kelas_id?: string;
   kelas?: string; // Legacy text field for existing tables
   nis?: string;
-  nama: string;
+  nama_murid: string;
+  nama?: string; // Alias for compatibility
   jenis_kelamin?: 'L' | 'P';
   tempat_lahir?: string;
   tanggal_lahir?: string;
@@ -389,7 +386,7 @@ export type ActiveTab =
   | 'catatan'
   | 'soal'
   | 'agenda'
-  | 'pengumuman'
+  | 'rapor'
   | 'admin';
 
 export type ShowToast = (message: string, type?: 'success' | 'error' | 'info') => void;
