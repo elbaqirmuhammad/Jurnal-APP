@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
 
     // Parse request body
     const body = await req.json();
-    const { email, password, nama_lengkap, role = "admin", setup_key } = body;
+    const { email, password, nama, role = "Admin", setup_key } = body;
 
     // Verify setup key (simple security measure)
     const validSetupKey = Deno.env.get("SETUP_KEY") || "simkbm-setup-2024";
@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
       password,
       email_confirm: true, // Auto-confirm email
       user_metadata: {
-        nama_lengkap: nama_lengkap || email.split("@")[0],
+        nama: nama || email.split("@")[0],
         role: role,
       },
     });
@@ -143,9 +143,8 @@ Deno.serve(async (req: Request) => {
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
-        nama_lengkap: nama_lengkap || email.split("@")[0],
+        nama: nama || email.split("@")[0],
         role: role,
-        is_active: true,
       })
       .eq("id", userData.user.id);
 

@@ -10,7 +10,7 @@ import type { Profile, ShowToast, TahunAjaran, Semester, MataPelajaran, UserRole
 
 type AdminTab = 'users' | 'info' | 'tahun' | 'semester' | 'kelas' | 'mapel';
 
-const SUPABASE_URL = 'https://intkcrhsinezswldmokr.supabase.co';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://yunaztumwnmbyuxvdelz.supabase.co';
 
 export default function AdminPage({
   showToast,

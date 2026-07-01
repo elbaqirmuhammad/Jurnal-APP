@@ -19,7 +19,7 @@ import AgendaPage from './pages/AgendaPage';
 import RaporPage from './pages/RaporPage';
 import AdminPage from './pages/AdminPage';
 
-const SUPABASE_URL = 'https://intkcrhsinezswldmokr.supabase.co';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://yunaztumwnmbyuxvdelz.supabase.co';
 
 function LoadingScreen() {
   return (
