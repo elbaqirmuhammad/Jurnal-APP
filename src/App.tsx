@@ -65,8 +65,8 @@ function SetupScreen({ showToast, onComplete }: { showToast: ShowToast; onComple
         body: JSON.stringify({
           email,
           password,
-          nama_lengkap: idLogin,
-          role: 'admin',
+          nama: idLogin,
+          role: 'Admin',
           setup_key: 'simkbm-setup-2024',
         }),
       });
@@ -301,11 +301,11 @@ export default function App() {
       return null;
     }
 
-    // If no profile exists, create one with default ustaz role
+    // If no profile exists, create one with default Guru role
     if (!data) {
       const { data: newProfile, error: createError } = await supabase
         .from('profiles')
-        .insert([{ id: userId, role: 'ustaz', is_active: true }])
+        .insert([{ id: userId, role: 'Guru' }])
         .select()
         .maybeSingle();
 
